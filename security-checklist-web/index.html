@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Security Checklist Automation — MVP</title>
+<style>
+:root{
+  --bg:#f6f8fa; --panel:#ffffff; --accent:#0b5fff; --danger:#d9534f;
+  --muted:#6b7280; --success:#28a745; --card-shadow: 0 6px 18px rgba(15,23,42,0.08);
+}
+body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; background:var(--bg); margin:0; padding:32px; color:#111827;}
+.container{max-width:1100px; margin:0 auto;}
+header{display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;}
+h1{font-size:20px; margin:0;}
+.row{display:flex; gap:18px;}
+.col{background:var(--panel); padding:18px; border-radius:12px; box-shadow:var(--card-shadow);}
+.left{width:340px; flex-shrink:0;}
+.right{flex:1; min-height:480px;}
+label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px;}
+textarea#userInput{width:100%; height:90px; padding:10px; border-radius:8px; border:1px solid #e5e7eb; resize:vertical; font-size:14px;}
+.checks{display:grid; grid-template-columns:1fr; gap:6px; max-height:280px; overflow:auto; margin-top:8px;}
+.check{display:flex; align-items:center; gap:8px; padding:8px; border-radius:8px; border:1px solid #f1f5f9; background:#fbfdff;}
+.actions{display:flex; gap:8px; margin-top:12px;}
+button{background:var(--accent); color:white; border:0; padding:8px 12px; border-radius:8px; cursor:pointer;}
+button.secondary{background:#e6eefb; color:var(--accent);}
+.tabs{display:flex; gap:8px; margin-bottom:12px;}
+.tab{padding:8px 12px; border-radius:8px; cursor:pointer; background:#f1f5f9;}
+.tab.active{background:linear-gradient(90deg,#ffffff,#eef6ff); box-shadow:0 2px 6px rgba(11,95,255,0.08); border:1px solid #e6eefb;}
+.output-box{padding:14px; border-radius:10px; min-height:300px; background:linear-gradient(#ffffff,#fbfdff); border:1px solid #eef2ff; overflow:auto;}
+.meta{font-size:13px; color:var(--muted); margin-bottom:8px;}
+pre{background:#0b1220; color:#e6eefb; padding:12px; border-radius:8px; overflow:auto; font-size:13px;}
+.row-between{display:flex; justify-content:space-between; align-items:center;}
+.pill{display:inline-block; padding:4px 8px; border-radius:999px; background:#f1f5f9; color:var(--muted); font-size:12px;}
+.small{font-size:13px; color:var(--muted);}
+.danger{color:var(--danger);}
+.success{color:var(--success);}
+.download-group{margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;}
+input[type="time"], select, input[type="text"]{padding:8px; border-radius:8px; border:1px solid #e5e7eb;}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+</head>
+<body>
+<div class="container">
+<header>
+<h1>Security Checklist Automation — MVP</h1>
+<div class="small">Frontend-first demo • simulated checks • exports TXT / PDF</div>
+</header>
+
+<div class="row">
+<div class="col left">
+  <label for="userInput">Paste URL / notes</label>
+  <textarea id="userInput" placeholder="e.g. https://myapp.com - validate headers and vulnerabilities"></textarea>
+  <div class="actions">
+    <button id="saveProject">Save</button>
+    <button id="refreshBtn" class="secondary">Refresh</button>
+  </div>
+
+  <hr style="margin:12px 0; border:none; height:1px; background:#eef2ff;">
+
+  <label>Choose security checks</label>
+  <div class="checks" id="checksList">
+    <div class="check"><input type="checkbox" value="sast" id="c_sast"><label for="c_sast">SAST (static analysis)</label></div>
+    <div class="check"><input type="checkbox" value="dast" id="c_dast"><label for="c_dast">DAST (dynamic / web scan)</label></div>
+    <div class="check"><input type="checkbox" value="dependency" id="c_dependency"><label for="c_dependency">Dependency scanning</label></div>
+    <div class="check"><input type="checkbox" value="secrets" id="c_secrets"><label for="c_secrets">Secrets detection</label></div>
+    <div class="check"><input type="checkbox" value="headers" id="c_headers"><label for="c_headers">Security headers check</label></div>
+    <div class="check"><input type="checkbox" value="container" id="c_container"><label for="c_container">Container scanning</label></div>
+    <div class="check"><input type="checkbox" value="accesscontrol" id="c_acl"><label for="c_acl">Access control checks</label></div>
+    <div class="check"><input type="checkbox" value="owasp" id="c_owasp"><label for="c_owasp">OWASP Top 10 quick probe</label></div>
+  </div>
+
+  <div style="margin-top:12px;">
+    <label>Pick CI Provider</label>
+    <select id="ciProvider">
+      <option value="github">GitHub Actions</option>
+      <option value="gitlab">GitLab CI</option>
+    </select>
+  </div>
+
+  <div style="margin-top:12px;">
+    <button id="generateBtn">Generate</button>
+  </div>
+
+</div>
+
+<div class="col right">
+  <div class="row-between" style="margin-bottom:8px;">
+    <div style="display:flex; gap:8px; align-items:center;">
+      <div class="tabs">
+        <div class="tab active" id="tab_checklist">Checklist</div>
+        <div class="tab" id="tab_updates">Updates</div>
+        <div class="tab" id="tab_reminder">Reminder</div>
+      </div>
+      <div class="pill" id="projectBadge">No project saved</div>
+    </div>
+
+    <div class="small">Export: 
+      <span id="exportHint" style="margin-left:6px; color:var(--muted)">TXT / PDF</span>
+    </div>
+  </div>
+
+  <div class="output-box" id="outputBox">
+    <div id="checklistView"></div>
+    <div id="updatesView" style="display:none"></div>
+    <div id="reminderView" style="display:none"></div>
+  </div>
+
+  <div class="download-group">
+    <button id="downloadTxt">Download Checklist (TXT)</button>
+    <button id="downloadPdf">Download Checklist (PDF)</button>
+  </div>
+</div>
+</div>
+
+<footer style="margin-top:18px; color:var(--muted); font-size:13px;">
+Tip: This is an MVP. Replace simulated checks with real scanner API / backend orchestration later.
+</footer>
+</div>
+
+<script>
+const saveBtn = document.getElementById('saveProject');
+const refreshBtn = document.getElementById('refreshBtn');
+const userInput = document.getElementById('userInput');
+const generateBtn = document.getElementById('generateBtn');
+const checklistView = document.getElementById('checklistView');
+const projectBadge = document.getElementById('projectBadge');
+const tabChecklist = document.getElementById('tab_checklist');
+const tabUpdates = document.getElementById('tab_updates');
+const tabReminder = document.getElementById('tab_reminder');
+const ciProvider = document.getElementById('ciProvider');
+const downloadTxt = document.getElementById('downloadTxt');
+const downloadPdf = document.getElementById('downloadPdf');
+
+function getSelectedChecks(){
+  const boxes = document.querySelectorAll('#checksList input[type=checkbox]');
+  const selected = [];
+  boxes.forEach(b => { if (b.checked) selected.push(b.value); });
+  return selected;
+}
+
+function saveProject(){
+  const data = { input: userInput.value, checks: getSelectedChecks(), provider: ciProvider.value };
+  localStorage.setItem('scm_project', JSON.stringify(data));
+  projectBadge.textContent = data.input ? (data.input.length>30?data.input.slice(0,28)+'...':data.input) : 'Project saved';
+  alert('Project saved locally in browser storage.');
+}
+
+function loadProject(){
+  const raw = localStorage.getItem('scm_project');
+  if(!raw) return;
+  try{
+    const data = JSON.parse(raw);
+    userInput.value = data.input || '';
+    ciProvider.value = data.provider || 'github';
+    document.querySelectorAll('#checksList input[type=checkbox]').forEach(b=> b.checked = data.checks && data.checks.includes(b.value));
+    projectBadge.textContent = userInput.value ? (userInput.value.length>30?userInput.value.slice(0,28)+'...':userInput.value) : 'Project loaded';
+  }catch(e){}
+}
+
+saveBtn.addEventListener('click', saveProject);
+refreshBtn.addEventListener('click', () => { loadProject(); renderAll(); });
+
+function showTab(name){
+  tabChecklist.classList.toggle('active', name==='checklist');
+  tabUpdates.classList.toggle('active', name==='updates');
+  tabReminder.classList.toggle('active', name==='reminder');
+  document.getElementById('checklistView').style.display = name==='checklist' ? 'block' : 'none';
+  document.getElementById('updatesView').style.display = name==='updates' ? 'block' : 'none';
+  document.getElementById('reminderView').style.display = name==='reminder' ? 'block' : 'none';
+}
+tabChecklist.addEventListener('click', ()=>showTab('checklist'));
+tabUpdates.addEventListener('click', ()=>showTab('updates'));
+tabReminder.addEventListener('click', ()=>showTab('reminder'));
+
+function analyzeHeaders(input){
+  const ctx = {};
+  ctx.url = input.trim();
+  ctx.https = ctx.url.startsWith('https://');
+  ctx.hsts = /secure/i.test(input);
+  ctx.csp = /csp/i.test(input);
+  ctx.xframe = /frame/i.test(input);
+  ctx.xcontent = /contenttype/i.test(input);
+  return ctx;
+}
+
+function runSimulatedChecks(input, selected){
+  const headerInfo = analyzeHeaders(input);
+  const items = [];
+  items.push({title:'URL reachable', ok: input.trim().length>0, detail: headerInfo.url || '—'});
+  items.push({title:'HTTPS enabled', ok: headerInfo.https, detail: headerInfo.https ? 'HTTPS (TLS) is present' : 'No HTTPS detected'});
+  items.push({title:'HSTS', ok: headerInfo.hsts, detail: headerInfo.hsts ? 'HSTS present' : 'HSTS not found'});
+  items.push({title:'Content-Security-Policy', ok: headerInfo.csp, detail: headerInfo.csp ? 'CSP present' : 'CSP not found'});
+  items.push({title:'X-Frame-Options', ok: headerInfo.xframe, detail: headerInfo.xframe ? 'X-Frame-Options set' : 'X-Frame-Options missing'});
+  items.push({title:'X-Content-Type-Options', ok: headerInfo.xcontent, detail: headerInfo.xcontent ? 'OK' : 'Missing'});
+  const checksMap = {
+    sast: 'SAST (static analysis)',
+    dast: 'DAST (dynamic scan)',
+    dependency: 'Dependency scanning',
+    secrets: 'Secrets exposure check',
+    container: 'Container vulnerability scan',
+    accesscontrol: 'Access control checks',
+    owasp: 'OWASP Top 10 quick probe'
+  };
+  for(const key of Object.keys(checksMap)){
+    const ok = /secure|ok|passed/i.test(input);
+    items.push({title:checksMap[key], ok: ok, detail: ok ? 'No obvious issues found (sim)' : 'Potential issues - run scanner'});
+  }
+  const total = items.length;
+  const passed = items.filter(it=>it.ok===true).length;
+  const score = total ? Math.round((passed/total)*100) : 0;
+  return {items, score, passed, total};
+}
+
+function generateChecklistText(input, res){
+  let lines = [];
+  lines.push('CHECKLIST RESULT');
+  lines.push('User Input: '+(input||'(none)'));
+  lines.push('');
+  lines.push('Checklist Status:');
+  lines.push(`${res.passed} Passed`);
+  lines.push(`${res.total - res.passed} Need Attention`);
+  lines.push('');
+  lines.push('Details:');
+  res.items.forEach((it,i)=>{
+    const status = it.ok===true?'OK':'NOT FOUND';
+    lines.push(`${i+1}. ${it.title}: ${status} -- ${it.detail}`);
+  });
+  lines.push('');
+  lines.push('Overall Score: '+res.score+'% Secure');
+  return lines.join('\n');
+}
+
+function renderChecklist(input, selected){
+  const res = runSimulatedChecks(input, selected);
+  let html = `<div class="meta"><strong>User Input:</strong> ${input||'(none)'}</div>`;
+  html += `<hr>`;
+  html += `<div style="margin-bottom:8px;"><strong>Checklist Status:</strong> &nbsp; <span class="success"> ${res.passed} Passed</span> &nbsp; - &nbsp; <span class="danger">${res.total - res.passed} Need Attention</span></div>`;
+  html += `<div><strong>Details:</strong></div><ol>`;
+  res.items.forEach((it, idx)=>{
+    html += `<li style="margin:6px 0;"><strong>${it.title}:</strong> ${it.ok===true?'<span class="success">ENABLED ✔</span>':'<span class="danger">NOT FOUND ❌</span>'} &nbsp; <div class="small" style="margin-top:4px">${it.detail}</div></li>`;
+  });
+  html += `</ol>`;
+  html += `<div style="margin-top:8px;"><strong>Overall Score:</strong> ${res.score}% Secure</div>`;
+  checklistView.innerHTML = html;
+  return {text: generateChecklistText(input, res), structured: res};
+}
+
+function renderAll(){
+  const input = userInput.value;
+  const selected = getSelectedChecks();
+  renderChecklist(input, selected);
+}
+
+generateBtn.addEventListener('click', ()=>{ renderAll(); showTab('checklist'); });
+
+// TXT Download
+downloadTxt.addEventListener('click', ()=>{
+  const {text} = renderChecklist(userInput.value, getSelectedChecks());
+  const blob = new Blob([text], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'checklist.txt';
+  a.click();
+});
+
+// PDF Download
+downloadPdf.addEventListener('click', ()=>{
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF();
+  const {text} = renderChecklist(userInput.value, getSelectedChecks());
+  const lines = text.split('\n');
+  let y = 10;
+  lines.forEach(line=>{
+    doc.text(line, 10, y);
+    y += 7;
+    if(y > 280){ doc.addPage(); y = 10; }
+  });
+  doc.save('checklist.pdf');
+});
+
+// Load project on page load
+loadProject();
+renderAll();
+</script>
+</body>
+</html>
+
